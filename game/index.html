@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Solara Bay — Open-World Crime</title>
+<style>
+  :root{
+    --hud-bg:rgba(8,12,20,.78); --hud-bg2:rgba(8,12,20,.62); --hud-line:rgba(255,255,255,.14);
+    --amber:#ffb02e; --green:#37e08b; --red:#ff4d4d; --cyan:#39c6ff; --ink:#f4f7ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0e18;
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink)}
+  #app{position:fixed;inset:0}
+  canvas#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #hud{position:absolute;inset:0;pointer-events:none;font-size:14px}
+  .panel{background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:10px;
+    padding:10px 12px;backdrop-filter:blur(2px);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+  .tag{display:inline-block;background:var(--amber);color:#1a1200;font-weight:800;
+    font-size:11px;letter-spacing:.06em;border-radius:4px;padding:2px 7px}
+  .tag.red{background:var(--red);color:#fff}
+  .tag.green{background:var(--green);color:#062b18}
+  /* ---- mission card ---- */
+  #mission{position:absolute;top:14px;left:14px;width:392px}
+  #mission .m-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  #mission h1{font-size:23px;letter-spacing:.02em;line-height:1.08;margin:5px 0 3px;text-transform:uppercase}
+  #mission .obj{font-size:13px;color:#d7e0f2;line-height:1.35}
+  #mission .timer{font-size:15px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums}
+  .stagebar{height:7px;background:#2a3348;border-radius:4px;margin:8px 0 5px;overflow:hidden}
+  .stagebar i{display:block;height:100%;background:linear-gradient(90deg,#ff7a1a,#ffb02e);border-radius:4px}
+  #mission .next{font-size:12.5px;color:#c9d4ea}
+  #mission .next b{color:#fff}
+  /* ---- police panel ---- */
+  #police{position:absolute;top:186px;left:14px;width:262px}
+  #police h3{color:var(--amber);font-size:13px;letter-spacing:.08em}
+  #police h3 span{float:right;color:#fff;font-weight:700}
+  #police table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12px}
+  #police td{padding:2px 0;color:#dbe4f5;white-space:nowrap}
+  #police td.u{color:#ffd27a;font-weight:700;min-width:86px}
+  #police td.r{color:#9fb0cc}
+  #police td.d{text-align:right;font-variant-numeric:tabular-nums;color:#fff}
+  #police .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+  #police .more{font-size:12px;color:#9fb0cc;margin-top:5px}
+  /* ---- district card ---- */
+  #district{position:absolute;top:356px;left:14px;width:262px}
+  #district h3{color:var(--amber);font-size:14px;letter-spacing:.05em}
+  #district .sub{font-size:12px;color:#b9c6de;margin:2px 0 7px}
+  #district .meter{height:7px;background:#2a3348;border-radius:4px;overflow:hidden}
+  #district .meter i{display:block;height:100%;background:var(--green)}
+  #district .fr{font-size:12px;color:#c9d4ea;margin-top:5px}
+  /* ---- minimap + vitals ---- */
+  #mapwrap{position:absolute;left:14px;bottom:14px;width:208px}
+  #minimap{width:180px;height:180px;border-radius:50%;border:3px solid rgba(255,255,255,.85);
+    box-shadow:0 0 0 4px rgba(0,0,0,.35),0 6px 22px rgba(0,0,0,.5);display:block;background:#0d1526}
+  .vital{margin-top:6px;font-size:12px;font-weight:700;letter-spacing:.05em}
+  .vital .bar{height:8px;background:#232c40;border-radius:5px;overflow:hidden;margin-top:2px}
+  .vital .bar i{display:block;height:100%}
+  .vital b{float:right;font-variant-numeric:tabular-nums}
+  /* ---- top right ---- */
+  #cashbox{position:absolute;top:12px;right:14px;text-align:right}
+  #clock{font-size:15px;font-weight:700;color:#e8eefc}
+  #cash{font-size:34px;font-weight:900;color:var(--green);line-height:1;
+    text-shadow:0 2px 10px rgba(0,0,0,.6);font-variant-numeric:tabular-nums}
+  #stars{font-size:22px;letter-spacing:3px;margin-top:2px;color:#ffd23e;
+    text-shadow:0 2px 8px rgba(0,0,0,.7)}
+  #stars .off{color:rgba(255,255,255,.35)}
+  #rankline{margin-top:4px;font-size:13px;font-weight:800}
+  #rankline .tag{font-size:12px}
+  #rpbar{width:190px;height:8px;background:#232c40;border-radius:5px;overflow:hidden;margin:5px 0 0 auto}
+  #rpbar i{display:block;height:100%;background:var(--green)}
+  #rptext{font-size:11.5px;color:#c9d4ea;margin-top:3px}
+  #airtag{position:absolute;top:196px;right:14px;background:var(--red);color:#fff;font-weight:800;
+    font-size:12.5px;letter-spacing:.05em;padding:5px 10px;border-radius:6px;
+    box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  /* ---- weapons ---- */
+  #weapons{position:absolute;top:228px;right:14px;display:flex;gap:7px}
+  .wslot{width:62px;background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:8px;
+    padding:7px 4px 6px;text-align:center}
+  .wslot.sel{border-color:var(--amber);box-shadow:0 0 0 1px var(--amber)}
+  .wslot .k{font-size:10px;color:#9fb0cc;font-weight:700}
+  .wslot .ic{font-size:19px;line-height:1.25}
+  .wslot .nm{font-size:11px;font-weight:800;letter-spacing:.03em}
+  .wslot .am{font-size:11px;color:#dbe4f5;font-variant-numeric:tabular-nums}
+  .wslot.locked{opacity:.55}
+  /* ---- crew cards ---- */
+  #crew{position:absolute;top:330px;right:14px;width:280px;display:flex;flex-direction:column;gap:8px}
+  .crewcard{background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:9px;
+    padding:8px 10px;display:flex;gap:9px;align-items:center}
+  .crewcard .key{background:var(--amber);color:#1a1200;font-weight:900;border-radius:5px;
+    width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px}
+  .crewcard .av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-weight:900;font-size:13px;color:#fff;flex:none}
+  .crewcard .nm{font-size:13px;font-weight:800;color:#ffd27a}
+  .crewcard .rl{font-size:11.5px;color:#b9c6de}
+  .crewcard .cd{margin-left:auto;font-size:12px;font-weight:800;color:var(--amber);white-space:nowrap}
+  /* ---- centre top chips ---- */
+  #chips{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center}
+  .chip{background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:20px;
+    padding:6px 13px;font-size:12.5px;font-weight:700}
+  .chip .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px}
+  #insight{background:var(--red);color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.05em;
+    border-radius:6px;padding:6px 12px}
+  /* ---- hint + feed ---- */
+  #hintline{position:absolute;left:50%;bottom:118px;transform:translateX(-50%);text-align:center}
+  #hintline .hint{background:var(--hud-bg);border-radius:7px;padding:6px 12px;font-size:13px;font-weight:700}
+  #hintline .feed{background:var(--hud-bg2);border-radius:7px;padding:5px 11px;font-size:12.5px;
+    color:#dbe4f5;margin-top:6px;display:inline-block}
+  /* ---- dialogue ---- */
+  #dialogue{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:640px;
+    background:var(--hud-bg);border:1px solid var(--hud-line);border-radius:10px;
+    padding:10px 14px;display:flex;gap:11px;align-items:flex-start}
+  #dialogue .av{width:40px;height:40px;border-radius:8px;background:#2f7fe0;color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex:none}
+  #dialogue .who{font-size:12.5px;font-weight:800;color:#7db8ff;letter-spacing:.04em}
+  #dialogue .line{font-size:14px;line-height:1.35;color:#eef2fb}
+  /* ---- speed ---- */
+  #speedo{position:absolute;right:16px;bottom:14px;text-align:right}
+  #speedo .veh{font-size:13px;font-weight:800;color:var(--amber)}
+  #speedo .dent{height:6px;width:170px;background:#2a3348;border-radius:4px;overflow:hidden;margin:4px 0 2px auto}
+  #speedo .dent i{display:block;height:100%;background:#ff7a1a}
+  #speedo .spd{font-size:46px;font-weight:900;line-height:.95;font-variant-numeric:tabular-nums}
+  #speedo .spd small{font-size:15px;font-weight:700;color:#c9d4ea}
+  #speedo .radio{font-size:12.5px;color:#7fe3c0;margin-top:2px}
+  /* ---- toast ---- */
+  #toast{position:absolute;left:50%;top:96px;transform:translateX(-50%);background:var(--hud-bg);
+    border:1px solid var(--amber);border-radius:9px;padding:9px 16px;font-size:14px;font-weight:700;
+    display:none;white-space:nowrap}
+  /* ---- start screen ---- */
+  #start{position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,10,22,.25),rgba(6,10,22,.78));
+    display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;text-align:center}
+  #start h1{font-size:74px;letter-spacing:.14em;font-weight:900;
+    text-shadow:0 4px 0 #ff7a1a,0 10px 34px rgba(0,0,0,.8)}
+  #start h2{font-size:17px;letter-spacing:.42em;color:#ffd27a;margin:6px 0 22px;font-weight:700}
+  #start p{font-size:15px;color:#dbe4f5;max-width:620px;line-height:1.55}
+  #start .btn{margin-top:26px;background:var(--amber);color:#1a1200;border:0;border-radius:10px;
+    font-size:19px;font-weight:900;padding:14px 42px;cursor:pointer;letter-spacing:.04em}
+  #start .keys{margin-top:18px;font-size:13px;color:#b9c6de;line-height:1.8}
+  #start .keys b{color:#fff;background:#232c40;border-radius:4px;padding:1px 7px;margin:0 2px}
+  /* ---- meta screen ---- */
+  #meta{position:absolute;inset:0;background:rgba(5,8,16,.96);display:none;pointer-events:auto;
+    padding:16px 30px;overflow:hidden}
+  #meta.open{display:block}
+  #meta .mhead{display:flex;justify-content:space-between;align-items:flex-end}
+  #meta h1{font-size:34px;letter-spacing:.18em;font-weight:900}
+  #meta .msub{color:var(--amber);font-size:12.5px;letter-spacing:.14em;font-weight:800;margin-top:2px}
+  #meta .tabs{display:flex;gap:22px;font-size:14px;font-weight:800;color:#8fa1c0}
+  #meta .tabs b{color:var(--amber);border-bottom:3px solid var(--amber);padding-bottom:4px}
+  #meta .grid{display:grid;grid-template-columns:400px 1fr 400px;gap:10px;margin-top:8px;height:calc(100% - 92px)}
+  #meta .col{display:flex;flex-direction:column;gap:10px;min-height:0}
+  #meta .card{background:#101828;border:1px solid #1e2a44;border-radius:12px;padding:9px 13px}
+  #meta .card h3{color:var(--amber);font-size:12.5px;letter-spacing:.12em;margin-bottom:7px}
+  #map2d{width:100%;height:250px;border-radius:8px;background:#0d1526;display:block}
+  .mrow{display:flex;justify-content:space-between;font-size:12.5px;padding:1.5px 0;color:#dbe4f5}
+  .mrow .bar{flex:1;height:8px;background:#232c40;border-radius:5px;margin:4px 10px 0;overflow:hidden}
+  .mrow .bar i{display:block;height:100%;background:var(--cyan)}
+  .rate{display:flex;gap:7px}
+  .rate div{width:40px;height:40px;background:#1a2338;border-radius:8px;text-align:center;padding-top:4px}
+  .rate div b{font-size:18px}
+  .rate div span{display:block;font-size:10px;color:#8fa1c0;margin-top:1px}
+  .career{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+  .career div{background:#1a2338;border-radius:9px;padding:5px 8px}
+  .career b{font-size:15px;display:block}
+  .career span{font-size:10px;color:#8fa1c0}
+  .ringwrap{display:flex;gap:16px;align-items:center}
+  .ringwrap .big{font-size:26px;font-weight:900;line-height:1.05}
+  .ringwrap .big small{display:block;font-size:11px;color:#8fa1c0;font-weight:700;letter-spacing:.1em}
+  .shop{font-size:13px;line-height:1.5}
+  .shop .q{font-style:italic;color:#c9d4ea}
+  .shop .row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #1a2338}
+  .shop .row b{font-variant-numeric:tabular-nums}
+  .own{color:var(--green);font-weight:800}
+  .lock{color:var(--red);font-weight:800}
+  #meta .foot{margin-top:8px;font-size:11.5px;color:#8fa1c0;text-align:center}
+  #fps{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:#8fa1c0;
+    opacity:.7;writing-mode:vertical-rl}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+  <div id="hud">
+    <div id="mission" class="panel">
+      <div class="m-top"><span><span class="tag" id="mNum">MISSION 6</span>&nbsp; <b id="mTitle">ORU'S FALL</b></span><span class="timer" id="mTimer">2:23</span></div>
+      <h1 id="mName">WRECK THE REGENT</h1>
+      <div class="obj" id="mObj">Wreck Oru's Regent before it reaches the pier.</div>
+      <div class="stagebar"><i id="mStageBar" style="width:75%"></i></div>
+      <div class="next"><span class="tag red" id="mStage">STAGE 3/4</span>&nbsp; NEXT <b id="mNext">Vanish</b></div>
+    </div>
+
+    <div id="police" class="panel">
+      <h3>KPD RESPONSE <span id="unitCount">6 UNITS</span></h3>
+      <table id="unitTable"></table>
+      <div class="more" id="unitMore">+1 more · roadblock ahead</div>
+    </div>
+
+    <div id="district" class="panel">
+      <h3 id="dName">KUMALA STRAND</h3>
+      <div class="sub" id="dSub">Strand Boulevard</div>
+      <div class="meter"><i id="dMeter" style="width:58%"></i></div>
+      <div class="fr">FRIENDLY · <span id="dFriendly">58</span></div>
+    </div>
+
+    <div id="mapwrap">
+      <canvas id="minimap" width="400" height="400"></canvas>
+      <div class="vital">HEALTH <b id="hpNum">72</b><div class="bar"><i id="hpBar" style="width:72%;background:#37e08b"></i></div></div>
+      <div class="vital">ARMOUR <b id="arNum">55</b><div class="bar"><i id="arBar" style="width:55%;background:#39c6ff"></i></div></div>
+    </div>
+
+    <div id="cashbox">
+      <div id="clock">12:00</div>
+      <div id="cash">$18,450</div>
+      <div id="stars">★★★★<span class="off">☆</span></div>
+      <div id="rankline"><span class="tag green">RANK B</span>&nbsp; FIXER</div>
+      <div id="rpbar"><i id="rpFill" style="width:75%"></i></div>
+      <div id="rptext">3,900 / 5,200 RP</div>
+    </div>
+    <div id="airtag">AIR UNIT DEPLOYED</div>
+
+    <div id="weapons"></div>
+    <div id="crew"></div>
+
+    <div id="chips">
+      <span class="chip"><span class="dot"></span>JUNO · PILAR GETAWAY</span>
+      <span class="chip"><span class="dot"></span>DEE · DEE ON 25S</span>
+      <span id="insight">IN SIGHT</span>
+    </div>
+
+    <div id="hintline">
+      <div class="hint" id="hint">💡 DUCK BY A STALL TO HIDE</div><br>
+      <div class="feed" id="feed">📻 CORAL-48: shots fired in the Pasaru night market</div>
+    </div>
+
+    <div id="dialogue">
+      <div class="av" id="dlgAv">MK</div>
+      <div><div class="who" id="dlgWho">MIRA KESANG · FIXER</div><div class="line" id="dlgLine">He's making for Kumala Pier! Ram the Regent before it reaches the water!</div></div>
+    </div>
+
+    <div id="speedo">
+      <div class="veh" id="vehName">RUKAN PELO GT · 62% DENTED</div>
+      <div class="dent"><i id="dentBar" style="width:62%"></i></div>
+      <div class="spd"><span id="speed">111</span> <small>KM/H</small></div>
+      <div class="radio" id="radio">♪ Radio Mango 98.6 — "Guava Sunrise"</div>
+    </div>
+
+    <div id="toast"></div>
+
+    <div id="start">
+      <h1>SOLARA BAY</h1>
+      <h2>AN OPEN-WORLD CRIME STORY</h2>
+      <p>Eight missions across eight districts. Steal cars, lose the KPD, build your crew —
+      and take the Regent before it reaches the pier. A sun-soaked city, yours to drive.</p>
+      <button class="btn" id="startBtn">▶&nbsp; START THE STORY</button>
+      <div class="keys"><b>W A S D</b> move / drive &nbsp; <b>SHIFT</b> run &nbsp; <b>SPACE</b> jump / handbrake<br>
+      <b>E</b> enter / exit car &nbsp; <b>F</b> shoot &nbsp; <b>1–6</b> weapons &nbsp; <b>Z X C</b> crew abilities<br>
+      <b>TAB</b> map &amp; stats &nbsp; <b>M</b> missions &nbsp; <b>P</b> pause &nbsp; <b>L</b> day / sunset / night</div>
+    </div>
+
+    <div id="meta">
+      <div class="mhead">
+        <div><h1>SOLARA BAY</h1><div class="msub">MAP · STORY · STATS · CREW · WORKSHOP · SAVE</div></div>
+        <div class="tabs"><b>MAP</b><span>STORY</span><span>STATS</span><span>CREW</span><span>SETTINGS</span><span>CONTROLS</span><span>SAVE</span></div>
+      </div>
+      <div class="grid">
+        <div class="col">
+          <div class="card"><canvas id="map2d" width="740" height="560"></canvas>
+            <div style="color:var(--amber);font-size:12px;font-weight:800;margin-top:8px">8 DISTRICTS · ROUTE TO KUMALA PIER</div></div>
+          <div class="card"><h3>DISTRICT STANDING</h3><div id="districtList"></div></div>
+        </div>
+        <div class="col">
+          <div class="card"><div class="ringwrap">
+            <svg width="92" height="92" viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="46" fill="none" stroke="#232c40" stroke-width="11"/>
+              <circle cx="55" cy="55" r="46" fill="none" stroke="#ffb02e" stroke-width="11"
+                stroke-linecap="round" stroke-dasharray="289" stroke-dashoffset="98" transform="rotate(-90 55 55)"/>
+              <text x="55" y="52" text-anchor="middle" fill="#fff" font-size="19" font-weight="900">66.1%</text>
+              <text x="55" y="70" text-anchor="middle" fill="#8fa1c0" font-size="9">COMPLETE</text>
+            </svg>
+            <div><span class="tag green">RANK B</span><div class="big">FIXER<small>3,900 / 5,200 RP</small></div></div>
+          </div></div>
+          <div class="card"><h3>PROGRESS</h3><div id="progressList"></div></div>
+          <div class="card"><h3>MISSION RATINGS</h3><div class="rate" id="rateList"></div></div>
+          <div class="card"><h3>CAREER</h3><div class="career" id="careerList"></div></div>
+        </div>
+        <div class="col">
+          <div class="card"><h3>WORKSHOP — DOCK 9 GARAGE</h3><div class="shop">
+            <div>🚗 <b>RUKAN PELO GT</b> on the lift · 62% dented</div>
+            <div class="q">"You break it, I bill it." — Lio, Mechanic</div>
+            <div style="height:8px"></div>
+            <div class="row"><span>NITRO KIT</span><b>$2,400</b>&nbsp;<span class="own">OWNED</span></div>
+            <div class="row"><span>ARMOUR PLATING</span><b>$3,800</b>&nbsp;<span class="own">OWNED</span></div>
+            <div class="row"><span>TURBO TUNE</span><b>$5,200</b>&nbsp;<span class="lock">LOCKED</span></div>
+            <div class="row"><span>BULLETPROOF TYRES</span><b>$1,900</b>&nbsp;<span class="own">OWNED</span></div>
+            <div class="row"><span>NEON UNDERGLOW</span><b>$1,200</b>&nbsp;<span class="lock">LOCKED</span></div>
+            <div style="margin-top:8px;color:var(--amber);font-weight:800">⬅ BACK TO THE STREET</div>
+          </div></div>
+          <div class="card"><h3>WEAPONS &amp; GEAR</h3><div id="gearList"></div></div>
+          <div class="card"><h3>SAVE SLOTS</h3><div id="saveList"></div></div>
+        </div>
+      </div>
+      <div class="foot">TAB / ESC — back to the street &nbsp;·&nbsp; Solara Bay is an original work. No Rockstar / GTA content.</div>
+    </div>
+  </div>
+  <div id="fps"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./three.module.min.js" } }
+</script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
